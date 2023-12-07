@@ -24,10 +24,21 @@ class Task:
         self.id = Task.id_counter
         Task.id_counter += 1
         self.priority = priority
-        self.due_date = due_date
+        self.due_date = self.parse_due_date(due_date)
+    
+    def parse_due_date(self, due_date):
+        if due_date:
+            try:
+                return datetime.strptime(due_date, '%m/%d/%Y')
+            except ValueError:
+                print("Invalid due date format. Due date set to None.")
+        return None
 
 class Tasks:
     """A list of `Task` objects."""
+
+    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
     def __init__(self):
         """Read pickled tasks file into a list"""
@@ -42,21 +53,42 @@ class Tasks:
             pickle.dump(self.tasks, f)
 
     def list(self):
-        incomplete_tasks = [task for task in self.tasks if task.completed is None]
-        incomplete_tasks.sort(key=lambda task: (task.due_date or datetime.max, -task.priority))
+        tt = [task for task in self.tasks if task.completed is None]
+        tt.sort(key=lambda task: (task.due_date or datetime.max, -task.priority))
         
-        print("\nID   Age  Due Date   Priority   Task")
-        print("--   ---  --------   --------   ----")
-        for task in incomplete_tasks:
+        print("{:<4} {:<5} {:<12} {:<10} {}".format("ID", "Age", "Due Date", "Priority", "Task"))
+        print("-" * 4 + " " + "-" * 5 + " " + "-" * 12 + " " + "-" * 10 + " " + "-" * 5)
+        for task in tt:
             age = (datetime.now() - task.created).days
-            print(f"{task.id}  {age}   {task.due_date}   {task.priority}   {task.name}")
+            if task.due_date:
+                due_date_str = f"{task.due_date.month}/{task.due_date.day}/{task.due_date.year}"
+            else:
+                due_date_str = "-"
+            print("{:<4} {:<5} {:<12} {:<10} {}".format(task.id, age, due_date_str, task.priority, task.name))
+    
+    def format_date(self, date):
+        day_name = self.day_names[date.weekday()]
+        month_name = self.month_names[date.month]
+        formatted_date = (
+            f"{day_name} {month_name} {date.day:02} "
+            f"{date.hour:02}:{date.minute:02}:{date.second:02} CST {date.year}"
+        )
+        return formatted_date
 
     def report(self):
-        print("\nID   Age  Due Date   Priority   Task                Created                       Completed")
-        print("--   ---  --------   --------   ----                ---------------------------   -------------------------")
-        for task in sorted(self.tasks, key=lambda x: (x.due_date, -x.priority)):
+        print("{:<4} {:<5} {:<12} {:<10} {:<20} {:<30} {:<20} ".format("ID", "Age", "Due Date", "Priority", "Task", "Created", "Completed"))
+        print("-" * 4 + " " + "-" * 5 + " " + "-" * 11 + " " + "-" * 10 + " " + "-" * 20 + " " + "-" * 30 + " " + "-" * 30)
+        def sorting_key(task):
+            return (task.due_date or datetime.max, -task.priority, task.created)
+        for task in sorted(self.tasks, key=sorting_key):
             age = (datetime.now() - task.created).days
-            print(f"{task.id}  {age}   {task.due_date}   {task.priority}   {task.name}     {task.created}        {task.completed}")
+            if task.due_date:
+                due_date_str = f"{task.due_date.month}/{task.due_date.day}/{task.due_date.year}"
+            else:
+                due_date_str = "-"
+            created_str = self.format_date(task.created)
+            completed_str = self.format_date(task.completed) if task.completed else "-"
+            print("{:<4} {:<5} {:<12} {:<10} {:<20} {:<30} {:<20}".format(task.id, age, due_date_str, task.priority, task.name, created_str, completed_str))
 
     def done(self, id):
         for task in self.tasks:
@@ -68,11 +100,15 @@ class Tasks:
         result_tasks = [task for task in self.tasks if task.completed is None and any(term.lower() in task.name.lower() for term in terms)]
         result_tasks.sort(key=lambda task: (task.due_date or datetime.max, -task.priority))
 
-        print("\nID   Age  Due Date   Priority   Task")
-        print("--   ---  --------   --------   ----")
+        print("{:<4} {:<5} {:<12} {:<10} {}".format("ID", "Age", "Due Date", "Priority", "Task"))
+        print("-" * 4 + " " + "-" * 5 + " " + "-" * 12 + " " + "-" * 10 + " " + "-" * 5)
         for task in result_tasks:
             age = (datetime.now() - task.created).days
-            print(f"{task.id}  {age}   {task.due_date}   {task.priority}   {task.name}")
+            if task.due_date:
+                due_date_str = f"{task.due_date.month}/{task.due_date.day}/{task.due_date.year}"
+            else:
+                due_date_str = "-"
+            print("{:<4} {:<5} {:<12} {:<10} {}".format(task.id, age, due_date_str, task.priority, task.name))
 
 
     def add(self, name, due_date=None, priority=1):
@@ -90,7 +126,7 @@ class Tasks:
 
 def main():
     tasks_manager = Tasks()
-
+    
     while True:
         print("\nAvailable commands:")
         print("--add 'Task Name' [--due 'Due Date' --priority 'Priority']")
@@ -101,20 +137,30 @@ def main():
         print("--delete 'Task ID'")
         print("--exit")
 
-        input = input("Enter command: ").strip().split()
+        input2 = input("Enter command: ")
+        input1 = input2.strip().split()
+        def extract_content_between_quotes(input_string):
+            start_quote = input_string.find('"')
+            end_quote = input_string.find('"', start_quote + 1)
 
-        if not input:
+            if start_quote != -1 and end_quote != -1:
+                content_between_quotes = input_string[start_quote + 1:end_quote]
+                return content_between_quotes
+            else:
+                return None
+
+        if not input1:
             continue
 
-        command = input[0].lower()
+        command = input1[0].lower()
 
         if command == "--add":
-            index_n = input.index('--add') + 1
-            name = input[index_n]
-            index_d = input.index('--due') + 1 if '--due' in input else None
-            due_date = input[index_d] if index_d is not None else None
-            index_p = input.index('--priority') + 1 if '--priority' in input else None
-            priority = int(input[index_p]) if index_p is not None else 1
+            index_n = input1.index('--add') + 1
+            name = extract_content_between_quotes(input2)
+            index_d = input1.index('--due') + 1 if '--due' in input1 else None
+            due_date = input1[index_d] if index_d is not None else None
+            index_p = input1.index('--priority') + 1 if '--priority' in input1 else None
+            priority = int(input1[index_p]) if index_p is not None else 1
 
             result = tasks_manager.add(name, due_date, priority)
             print(result)
@@ -126,19 +172,19 @@ def main():
             tasks_manager.report()
 
         elif command == "--done":
-            task_id_index = input.index('--done') + 1
-            task_id = int(input[task_id_index])
+            task_id_index = input1.index('--done') + 1
+            task_id = int(input1[task_id_index])
             result = tasks_manager.done(task_id)
             print(result)
 
         elif command == "--query":
-            search_term_index = input.index('--query') + 1
-            search_terms = input[search_term_index:]
+            search_term_index = input1.index('--query') + 1
+            search_terms = input1[search_term_index:]
             tasks_manager.query(*search_terms)
 
         elif command == "--delete":
-            task_id_index = input.index('--delete') + 1
-            task_id = int(input[task_id_index])
+            task_id_index = input1.index('--delete') + 1
+            task_id = int(input1[task_id_index])
             result = tasks_manager.delete(task_id)
             print(result)
 
